@@ -246,7 +246,7 @@ static struct pingpong_dest *pp_client_exch_dest(const char *servername, int por
         goto out;
     }
 
-    write(sockfd, "done", sizeof "done");
+    (void)write(sockfd, "done", sizeof "done");
 
     rem_dest = malloc(sizeof *rem_dest);
     if (!rem_dest)
@@ -351,7 +351,7 @@ static struct pingpong_dest *pp_server_exch_dest(struct pingpong_context *ctx,
         goto out;
     }
 
-    read(connfd, msg, sizeof msg);
+    (void)read(connfd, msg, sizeof msg);
 
     out:
     close(connfd);
@@ -422,13 +422,6 @@ static struct pingpong_context *pp_init_ctx(struct ibv_device *ib_dev, int size,
     }
 
     {
-        struct ibv_device_attr device_attr;
-        if (ibv_query_device(ctx->context, &device_attr)) {
-            fprintf(stderr, "Couldn't query device attributes\n");
-            goto clean_cq;
-        }
-        ctx->max_inline_data = device_attr.max_inline_data;
-
         struct ibv_qp_init_attr attr = {
                 .send_cq = ctx->cq,
                 .recv_cq = ctx->cq,
@@ -437,7 +430,7 @@ static struct pingpong_context *pp_init_ctx(struct ibv_device *ib_dev, int size,
                         .max_recv_wr  = rx_depth,
                         .max_send_sge = 1,
                         .max_recv_sge = 1,
-                        .max_inline_data = ctx->max_inline_data
+                        .max_inline_data = 0
                 },
                 .qp_type = IBV_QPT_RC
         };
@@ -447,6 +440,7 @@ static struct pingpong_context *pp_init_ctx(struct ibv_device *ib_dev, int size,
             fprintf(stderr, "Couldn't create QP\n");
             goto clean_cq;
         }
+        ctx->max_inline_data = attr.cap.max_inline_data;
     }
 
     {
@@ -651,13 +645,11 @@ static void usage(const char *argv0)
     printf("  %s <host>     connect to server at <host>\n", argv0);
     printf("\n");
     printf("Options:\n");
-    printf("  -p, --port=<port>      listen on/connect to port <port> (default 18515)\n");
+    printf("  -p, --port=<port>      listen on/connect to port <port> (default 12345)\n");
     printf("  -d, --ib-dev=<dev>     use IB device <dev> (default first device found)\n");
     printf("  -i, --ib-port=<port>   use port <port> of IB device (default 1)\n");
-    printf("  -s, --size=<size>      size of message to exchange (default 4096)\n");
-    printf("  -m, --mtu=<size>       path MTU (default 1024)\n");
-    printf("  -r, --rx-depth=<dep>   number of receives to post at a time (default 500)\n");
-    printf("  -n, --iters=<iters>    number of exchanges (default 1000)\n");
+    printf("  -m, --mtu=<size>       path MTU (default 2048)\n");
+    printf("  -r, --rx-depth=<dep>   number of receives to post at a time (default 100)\n");
     printf("  -l, --sl=<sl>          service level value\n");
     printf("  -e, --events           sleep on CQ events (default poll)\n");
     printf("  -g, --gid-idx=<gid index> local port gid index\n");
@@ -677,9 +669,7 @@ int main(int argc, char *argv[])
     enum ibv_mtu             mtu = IBV_MTU_2048;
     int                      rx_depth = 100;
     int                      tx_depth = 100;
-    int                      iters = 1000;
     int                      use_event = 0;
-    int                      size = 1;
     int                      sl = 0;
     int                      gidx = -1;
     char                     gid[33];
@@ -693,17 +683,15 @@ int main(int argc, char *argv[])
                 { .name = "port",     .has_arg = 1, .val = 'p' },
                 { .name = "ib-dev",   .has_arg = 1, .val = 'd' },
                 { .name = "ib-port",  .has_arg = 1, .val = 'i' },
-                { .name = "size",     .has_arg = 1, .val = 's' },
                 { .name = "mtu",      .has_arg = 1, .val = 'm' },
                 { .name = "rx-depth", .has_arg = 1, .val = 'r' },
-                { .name = "iters",    .has_arg = 1, .val = 'n' },
                 { .name = "sl",       .has_arg = 1, .val = 'l' },
                 { .name = "events",   .has_arg = 0, .val = 'e' },
                 { .name = "gid-idx",  .has_arg = 1, .val = 'g' },
                 { 0 }
         };
 
-        c = getopt_long(argc, argv, "p:d:i:s:m:r:n:l:eg:", long_options, NULL);
+        c = getopt_long(argc, argv, "p:d:i:m:r:l:eg:", long_options, NULL);
         if (c == -1)
             break;
 
@@ -728,10 +716,6 @@ int main(int argc, char *argv[])
             }
             break;
 
-        case 's':
-            size = strtol(optarg, NULL, 0);
-            break;
-
         case 'm':
             mtu = pp_mtu_to_enum(strtol(optarg, NULL, 0));
             if (mtu < 0) {
@@ -742,10 +726,6 @@ int main(int argc, char *argv[])
 
         case 'r':
             rx_depth = strtol(optarg, NULL, 0);
-            break;
-
-        case 'n':
-            iters = strtol(optarg, NULL, 0);
             break;
 
         case 'l':
@@ -845,6 +825,11 @@ int main(int argc, char *argv[])
     inet_ntop(AF_INET6, &my_dest.gid, gid, sizeof gid);
     fprintf(stderr,"  local address:  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, GID %s, VADDR %016llx, RKEY %08x\n",
            my_dest.lid, my_dest.qpn, my_dest.psn, gid, (unsigned long long) my_dest.vaddr, my_dest.rkey);
+    if (ctx->max_inline_data > 0) {
+        fprintf(stderr, "  inline data support enabled (max_inline_data = %d)\n", ctx->max_inline_data);
+    } else {
+        fprintf(stderr, "  inline data not supported or enabled\n");
+    }
 
 
     if (servername)
