@@ -574,7 +574,7 @@ static int pp_post_send(struct pingpong_context *ctx, enum ibv_wr_opcode opcode,
     };
 
     if (ctx->size > 0 && ctx->size <= ctx->max_inline_data) {
-        wr.send_flags |= IBV_SEND_INLINE;
+        wr.send_flags |= IBV_SEND_INLINE;//turns on the bit that means send inline
     }
 
     if (opcode == IBV_WR_RDMA_WRITE) {
@@ -645,11 +645,13 @@ static void usage(const char *argv0)
     printf("  %s <host>     connect to server at <host>\n", argv0);
     printf("\n");
     printf("Options:\n");
-    printf("  -p, --port=<port>      listen on/connect to port <port> (default 12345)\n");
+    printf("  -p, --port=<port>      listen on/connect to port <port> (default 18515)\n");
     printf("  -d, --ib-dev=<dev>     use IB device <dev> (default first device found)\n");
     printf("  -i, --ib-port=<port>   use port <port> of IB device (default 1)\n");
-    printf("  -m, --mtu=<size>       path MTU (default 2048)\n");
-    printf("  -r, --rx-depth=<dep>   number of receives to post at a time (default 100)\n");
+    printf("  -s, --size=<size>      size of message to exchange (default 4096)\n");
+    printf("  -m, --mtu=<size>       path MTU (default 1024)\n");
+    printf("  -r, --rx-depth=<dep>   number of receives to post at a time (default 500)\n");
+    printf("  -n, --iters=<iters>    number of exchanges (default 1000)\n");
     printf("  -l, --sl=<sl>          service level value\n");
     printf("  -e, --events           sleep on CQ events (default poll)\n");
     printf("  -g, --gid-idx=<gid index> local port gid index\n");
@@ -657,6 +659,7 @@ static void usage(const char *argv0)
 
 int main(int argc, char *argv[])
 {
+    const int warmup_iters = 100;
     struct ibv_device      **dev_list;
     struct ibv_device       *ib_dev;
     struct pingpong_context *ctx;
@@ -859,7 +862,6 @@ int main(int argc, char *argv[])
         if (servername) {
             // Client
             int i;
-            const int warmup_iters = 100;
 
             // Warm-up phase
             for (int j = 0; j < warmup_iters; ++j) {
@@ -870,7 +872,7 @@ int main(int argc, char *argv[])
                             return 1;
                         }
                     }
-                    if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
+                    if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) { //IBV_WR_RDMA_WRITE becoaus main data one sided send without comunication about it
                         fprintf(stderr, "Client couldn't post RDMA WRITE during warmup\n");
                         return 1;
                     }
@@ -911,7 +913,7 @@ int main(int argc, char *argv[])
                         return 1;
                     }
                 }
-                if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
+                if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {// note ctx as msg_size which is currently the size being sent
                     fprintf(stderr, "Client couldn't post RDMA WRITE during benchmark\n");
                     return 1;
                 }
@@ -944,13 +946,13 @@ int main(int argc, char *argv[])
 
             double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
             double total_megabytes = ((double)batch_size * (double)msg_size) / (1024.0 * 1024.0);
-            double throughput_mbps = total_megabytes / elapsed;
+            double throughput_mbps = total_megabytes / elapsed;//the actual important calculation
 
             printf("%u\t%.2f\tMB/s\n", msg_size, throughput_mbps);
 
         } else {
             // Server
-            const int warmup_iters = 100;
+
 
             // Warm-up phase
             for (int j = 0; j < warmup_iters; ++j) {
