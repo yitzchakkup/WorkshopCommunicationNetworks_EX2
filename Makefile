@@ -1,16 +1,20 @@
 CC = gcc
-CFLAGS = -Wall -O2
+CFLAGS = -Wall -O2 -D_GNU_SOURCE
 LDFLAGS = -libverbs
 
-# Default target: build the bw_template executable
-all: bw_template
+# Default target
+all: server client
 
-# Rule to build the RDMA benchmark executable
-bw_template: bw_template.c
-	$(CC) $(CFLAGS) -o bw_template bw_template.c $(LDFLAGS)
+# Rule to build the server executable
+server: bw_template.c
+	$(CC) $(CFLAGS) -o server bw_template.c $(LDFLAGS)
 
-# Rule to clean up the built executable
+# Rule to create the client symbolic link pointing to the server
+client: server
+	ln -sf server client
+
+# Rule to clean up the workspace
 clean:
-	rm -f bw_template
+	rm -f server client
 
 .PHONY: all clean
