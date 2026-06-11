@@ -29,6 +29,6 @@ out/
 
 # CMake
 CMakeCache.txt
-CMakeFiles/
+CMakeFiles/ssh -l yit.kup mlx-stud-02.cs.huji.ac.il
 cmake_install.cmake
 install_manifest.txt
