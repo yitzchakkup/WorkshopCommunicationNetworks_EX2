@@ -252,7 +252,7 @@ static struct pingpong_dest *pp_client_exch_dest(const char *servername, int por
     if (!rem_dest)
         goto out;
 
-    sscanf(msg, "%x:%x:%x:%s:%llx:%x", &rem_dest->lid, &rem_dest->qpn, &rem_dest->psn, gid, (unsigned long long *) &rem_dest->vaddr, &rem_dest->rkey);
+    sscanf(msg, "%x:%x:%x:%32s:%llx:%x", &rem_dest->lid, &rem_dest->qpn, &rem_dest->psn, gid, (unsigned long long *) &rem_dest->vaddr, &rem_dest->rkey);
     wire_gid_to_gid(gid, &rem_dest->gid);
 
     out:
@@ -331,7 +331,7 @@ static struct pingpong_dest *pp_server_exch_dest(struct pingpong_context *ctx,
     if (!rem_dest)
         goto out;
 
-    sscanf(msg, "%x:%x:%x:%s:%llx:%x", &rem_dest->lid, &rem_dest->qpn, &rem_dest->psn, gid, (unsigned long long *) &rem_dest->vaddr, &rem_dest->rkey);
+    sscanf(msg, "%x:%x:%x:%32s:%llx:%x", &rem_dest->lid, &rem_dest->qpn, &rem_dest->psn, gid, (unsigned long long *) &rem_dest->vaddr, &rem_dest->rkey);
     wire_gid_to_gid(gid, &rem_dest->gid);
 
     if (pp_connect_ctx(ctx, ib_port, my_dest->psn, mtu, sl, rem_dest, sgid_idx)) {
