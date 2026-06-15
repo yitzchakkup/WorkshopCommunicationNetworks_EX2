@@ -861,12 +861,13 @@ int main(int argc, char *argv[])
         ctx->size = msg_size;
 
         if (servername) {
+            int chunk = 100; // The safe limit to prevent inline overflow
             // Client
             int i;
 
             // --- WARMUP PHASE ---
             for (int j = 0; j < warmup_iters; ++j) {
-                int chunk = 100; // The safe limit to prevent inline overflow
+
                 int outstanding = 0;
 
                 // Post RDMA WRITEs
@@ -908,7 +909,6 @@ int main(int argc, char *argv[])
                 return 1;
             }
 
-            int chunk = 50;
             int outstanding = 0;
 
             // Post RDMA WRITEs
