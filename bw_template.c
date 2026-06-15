@@ -865,21 +865,23 @@ int main(int argc, char *argv[])
 
             // Warm-up phase
             for (int j = 0; j < warmup_iters; ++j) {
+                int chunk = 50; // The safe limit to prevent inline overflow
+
                 // Post RDMA WRITEs
                 for (i = 0; i < batch_size; ++i) {
-                    if (i > 0 && (i % tx_depth) == 0) {
-                        if (pp_wait_completions(ctx, tx_depth)) {
+                    if (i > 0 && (i % chunk) == 0) {
+                        if (pp_wait_completions(ctx, chunk)) {
                             return 1;
                         }
                     }
-                    if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) { //IBV_WR_RDMA_WRITE becoaus main data one sided send without comunication about it
+                    if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
                         fprintf(stderr, "Client couldn't post RDMA WRITE during warmup\n");
                         return 1;
                     }
                 }
                 // Wait for remaining RDMA WRITE completions
-                if ((batch_size % tx_depth) != 0) {
-                    if (pp_wait_completions(ctx, batch_size % tx_depth)) {
+                if ((batch_size % chunk) != 0) {
+                    if (pp_wait_completions(ctx, batch_size % chunk)) {
                         return 1;
                     }
                 }
@@ -906,21 +908,23 @@ int main(int argc, char *argv[])
                 return 1;
             }
 
+            int chunk = 50;
+
             // Post RDMA WRITEs
             for (i = 0; i < batch_size; ++i) {
-                if (i > 0 && (i % tx_depth) == 0) {
-                    if (pp_wait_completions(ctx, tx_depth)) {
+                if (i > 0 && (i % chunk) == 0) {
+                    if (pp_wait_completions(ctx, chunk)) {
                         return 1;
                     }
                 }
-                if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {// note ctx as msg_size which is currently the size being sent
+                if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
                     fprintf(stderr, "Client couldn't post RDMA WRITE during benchmark\n");
                     return 1;
                 }
             }
             // Wait for remaining RDMA WRITE completions
-            if ((batch_size % tx_depth) != 0) {
-                if (pp_wait_completions(ctx, batch_size % tx_depth)) {
+            if ((batch_size % chunk) != 0) {
+                if (pp_wait_completions(ctx, batch_size % chunk)) {
                     return 1;
                 }
             }
