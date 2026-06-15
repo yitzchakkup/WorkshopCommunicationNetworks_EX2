@@ -878,6 +878,10 @@ int main(int argc, char *argv[])
                         fprintf(stderr, "Client couldn't post RDMA WRITE during warmup\n");
                         return 1;
                     }
+                    else {//todo remove
+                      fprintf(stderr, "sent number %d\n", i);
+                    }
+
                 }
                 // Wait for remaining RDMA WRITE completions
                 if ((batch_size % chunk) != 0) {
