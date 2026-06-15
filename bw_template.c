@@ -869,7 +869,7 @@ int main(int argc, char *argv[])
 
                 // Post RDMA WRITEs
                 for (i = 0; i < batch_size; ++i) {
-                    if (i > 0 && (i % chunk) == 0) {
+                    if (i > 0 && ((i+1) % chunk) == 0) {
                         if (pp_wait_completions(ctx, chunk)) {
                             return 1;
                         }
