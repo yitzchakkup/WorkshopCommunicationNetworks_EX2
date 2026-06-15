@@ -913,23 +913,32 @@ int main(int argc, char *argv[])
                 return 1;
             }
 
+int outstanding = 0;
             int chunk = 50;
 
             // Post RDMA WRITEs
             for (i = 0; i < batch_size; ++i) {
-                if (i > 0 && (i % chunk) == 0) {
+                // 1. Drain the queue if we hit our chunk limit
+                if (outstanding == chunk) {
                     if (pp_wait_completions(ctx, chunk)) {
                         return 1;
                     }
+                    outstanding = 0;
                 }
+                
+                // 2. Post the Work Request
                 if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
                     fprintf(stderr, "Client couldn't post RDMA WRITE during benchmark\n");
                     return 1;
                 }
+                
+                // 3. Increment our tracking counter
+                outstanding++;
             }
-            // Wait for remaining RDMA WRITE completions
-            if ((batch_size % chunk) != 0) {
-                if (pp_wait_completions(ctx, batch_size % chunk)) {
+            
+            // 4. Safely wait for ANY remaining RDMA WRITE completions
+            if (outstanding > 0) {
+                if (pp_wait_completions(ctx, outstanding)) {
                     return 1;
                 }
             }
@@ -947,7 +956,6 @@ int main(int argc, char *argv[])
             if (pp_wait_completions(ctx, 1)) {
                 return 1;
             }
-
             if (clock_gettime(CLOCK_MONOTONIC, &end) != 0) {
                 perror("clock_gettime");
                 return 1;
