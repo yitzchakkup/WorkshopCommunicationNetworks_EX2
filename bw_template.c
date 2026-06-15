@@ -866,7 +866,7 @@ int main(int argc, char *argv[])
 
             // --- WARMUP PHASE ---
             for (int j = 0; j < warmup_iters; ++j) {
-                int chunk = 50; // The safe limit to prevent inline overflow
+                int chunk = 100; // The safe limit to prevent inline overflow
                 int outstanding = 0;
 
                 // Post RDMA WRITEs
