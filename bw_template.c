@@ -853,7 +853,7 @@ int main(int argc, char *argv[])
             return 1;
 
     for (uint32_t msg_size = 1; msg_size <= 1024 * 1024; msg_size *= 2) {
-        const long long total_data_per_test = 256LL * 1024 * 1024;
+        const long long total_data_per_test = 64LL * 1024 * 1024;
         uint32_t batch_size = (uint32_t)(total_data_per_test / msg_size);
         if (batch_size < 10) batch_size = 10;
         if (batch_size > 200000) batch_size = 200000;
