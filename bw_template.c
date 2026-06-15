@@ -536,7 +536,8 @@ static int pp_post_recv(struct pingpong_context *ctx, int n)
 {
     struct ibv_sge list = {
             .addr	= (uintptr_t) ctx->buf,
-            .length = ctx->size,
+            //.length = ctx->size,
+            .length = 1024 * 1024, // Always post the 1MB max size
             .lkey	= ctx->mr->lkey
     };
     struct ibv_recv_wr wr = {
@@ -912,8 +913,7 @@ int main(int argc, char *argv[])
                 perror("clock_gettime");
                 return 1;
             }
-
-int outstanding = 0;
+            int outstanding = 0;
             int chunk = 50;
 
             // Post RDMA WRITEs
