@@ -864,57 +864,52 @@ int main(int argc, char *argv[])
             // Client
             int i;
 
-            // Warm-up phase
+            // --- WARMUP PHASE ---
             for (int j = 0; j < warmup_iters; ++j) {
                 int chunk = 50; // The safe limit to prevent inline overflow
+                int outstanding = 0;
 
-        
+                // Post RDMA WRITEs
+                for (i = 0; i < batch_size; ++i) {
+                    // Poll when we hit our target chunk depth to clear the queue
+                    if (outstanding == chunk) {
+                        if (pp_wait_completions(ctx, chunk)) return 1;
+                        outstanding = 0;
+                    }
 
-            int outstanding = 0;
-            
-            // Post RDMA WRITEs
-            for (i = 0; i < batch_size; ++i) {
-                // Poll when we hit our target depth to clear the queue
-                if (outstanding == tx_depth) {
-                    if (pp_wait_completions(ctx, tx_depth)) return 1;
-                    outstanding = 0;
+                    if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
+                        fprintf(stderr, "Client couldn't post RDMA WRITE during warmup\n");
+                        return 1;
+                    }
+                    outstanding++;
                 }
-                
-                if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
-                    fprintf(stderr, "Client couldn't post RDMA WRITE\n");
-                    return 1;
-                }
-                outstanding++;
-            }
-            
-            // CRITICAL FIX: Always poll whatever is left over
-            if (outstanding > 0) {
-                if (pp_wait_completions(ctx, outstanding)) return 1;
-            }
 
-            // Signal server that batch is complete
-            if (pp_post_send(ctx, IBV_WR_SEND, 0, 0)) {
+                // CRITICAL FIX: Always poll whatever is left over
+                if (outstanding > 0) {
+                    if (pp_wait_completions(ctx, outstanding)) return 1;
+                }
+
+                // Signal server that batch is complete
+                if (pp_post_send(ctx, IBV_WR_SEND, 0, 0)) {
                     fprintf(stderr, "Client couldn't post SEND signal during warmup\n");
                     return 1;
                 }
                 // Wait for the signal's send completion
-                if (pp_wait_completions(ctx, 1)) {
-                    return 1;
-                }
+                if (pp_wait_completions(ctx, 1)) return 1;
+
                 // Wait for the server's ACK
-                if (pp_wait_completions(ctx, 1)) {
-                    return 1;
-                }
+                if (pp_wait_completions(ctx, 1)) return 1;
             }
 
-            // Timed benchmark phase
+            // --- TIMED BENCHMARK PHASE ---
             struct timespec start, end;
             if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) {
                 perror("clock_gettime");
                 return 1;
             }
-            int outstanding = 0;
+
             int chunk = 50;
+            int outstanding = 0;
 
             // Post RDMA WRITEs
             for (i = 0; i < batch_size; ++i) {
@@ -925,17 +920,17 @@ int main(int argc, char *argv[])
                     }
                     outstanding = 0;
                 }
-                
+
                 // 2. Post the Work Request
                 if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
                     fprintf(stderr, "Client couldn't post RDMA WRITE during benchmark\n");
                     return 1;
                 }
-                
+
                 // 3. Increment our tracking counter
                 outstanding++;
             }
-            
+
             // 4. Safely wait for ANY remaining RDMA WRITE completions
             if (outstanding > 0) {
                 if (pp_wait_completions(ctx, outstanding)) {
@@ -948,14 +943,13 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Client couldn't post SEND signal during benchmark\n");
                 return 1;
             }
+
             // Wait for the signal's send completion
-            if (pp_wait_completions(ctx, 1)) {
-                return 1;
-            }
+            if (pp_wait_completions(ctx, 1)) return 1;
+
             // Wait for the server's ACK (this is the end of the timed interval)
-            if (pp_wait_completions(ctx, 1)) {
-                return 1;
-            }
+            if (pp_wait_completions(ctx, 1)) return 1;
+
             if (clock_gettime(CLOCK_MONOTONIC, &end) != 0) {
                 perror("clock_gettime");
                 return 1;
@@ -963,7 +957,7 @@ int main(int argc, char *argv[])
 
             double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
             double total_megabytes = ((double)batch_size * (double)msg_size) / (1024.0 * 1024.0);
-            double throughput_mbps = total_megabytes / elapsed;//the actual important calculation
+            double throughput_mbps = total_megabytes / elapsed; // The actual important calculation
 
             printf("%u\t%.2f\tMB/s\n", msg_size, throughput_mbps);
 
@@ -978,7 +972,7 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "Server failed waiting for warmup signal\n");
                     return 1;
                 }
-                
+
                 // Send ACK
                 if (pp_post_send(ctx, IBV_WR_SEND, 0, 0)) {
                     fprintf(stderr, "Server couldn't send warmup ACK\n");
