@@ -978,6 +978,9 @@ int outstanding = 0;
                     fprintf(stderr, "Server failed waiting for warmup signal\n");
                     return 1;
                 }
+                else{
+                    fprintf(stderr, "got msg from client %d\n", j);
+                }
                 // Send ACK
                 if (pp_post_send(ctx, IBV_WR_SEND, 0, 0)) {
                     fprintf(stderr, "Server couldn't send warmup ACK\n");
