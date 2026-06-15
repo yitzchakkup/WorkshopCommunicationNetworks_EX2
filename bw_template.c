@@ -867,31 +867,32 @@ int main(int argc, char *argv[])
             for (int j = 0; j < warmup_iters; ++j) {
                 int chunk = 50; // The safe limit to prevent inline overflow
 
-                // Post RDMA WRITEs
-                for (i = 0; i < batch_size; ++i) {
-                    if (i > 0 && ((i+1) % chunk) == 0) {
-                        if (pp_wait_completions(ctx, chunk)) {
-                            return 1;
-                        }
-                    }
-                    if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
-                        fprintf(stderr, "Client couldn't post RDMA WRITE during warmup\n");
-                        return 1;
-                    }
-                    else {//todo remove
-                      fprintf(stderr, "sent number %d\n", i);
-                    }
+        
 
+            int outstanding = 0;
+            
+            // Post RDMA WRITEs
+            for (i = 0; i < batch_size; ++i) {
+                // Poll when we hit our target depth to clear the queue
+                if (outstanding == tx_depth) {
+                    if (pp_wait_completions(ctx, tx_depth)) return 1;
+                    outstanding = 0;
                 }
-                // Wait for remaining RDMA WRITE completions
-                if ((batch_size % chunk) != 0) {
-                    if (pp_wait_completions(ctx, batch_size % chunk)) {
-                        return 1;
-                    }
+                
+                if (pp_post_send(ctx, IBV_WR_RDMA_WRITE, rem_dest->vaddr, rem_dest->rkey)) {
+                    fprintf(stderr, "Client couldn't post RDMA WRITE\n");
+                    return 1;
                 }
+                outstanding++;
+            }
+            
+            // CRITICAL FIX: Always poll whatever is left over
+            if (outstanding > 0) {
+                if (pp_wait_completions(ctx, outstanding)) return 1;
+            }
 
-                // Signal server that batch is complete
-                if (pp_post_send(ctx, IBV_WR_SEND, 0, 0)) {
+            // Signal server that batch is complete
+            if (pp_post_send(ctx, IBV_WR_SEND, 0, 0)) {
                     fprintf(stderr, "Client couldn't post SEND signal during warmup\n");
                     return 1;
                 }
